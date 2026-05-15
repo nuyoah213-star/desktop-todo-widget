@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<title>待办事项</title>
+
+<HTA:APPLICATION
+  ID="todoWidget"
+  APPLICATIONNAME="待办事项"
+  BORDER="thin"
+  INNERBORDER="no"
+  CAPTION="yes"
+  SYSMENU="yes"
+  MAXIMIZEBUTTON="no"
+  MINIMIZEBUTTON="yes"
+  SCROLL="no"
+  SELECTION="no"
+  CONTEXTMENU="no"
+  SINGLEINSTANCE="yes"
+  NAVIGABLE="no"
+/>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: #4a3749;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    align-items: stretch;
+    background: linear-gradient(155deg,
+      rgba(252,239,240,0.94) 0%,
+      rgba(247,210,213,0.78) 40%,
+      rgba(235,159,170,0.45) 70%,
+      rgba(192,206,228,0.58) 100%
+    );
+  }
+
+  .widget {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px 14px;
+    gap: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(235,159,170,0.25);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.35) inset;
+  }
+
+  .add-row       { display: flex; gap: 8px; flex-shrink: 0; }
+  .add-row input[type="text"] {
+    flex: 1; padding: 8px 14px;
+    border: 1.5px solid rgba(192,206,228,0.6);
+    border-radius: 20px; font-size: 13px; outline: none;
+    background: rgba(255,255,255,0.65);
+    transition: border 0.2s, box-shadow 0.2s;
+    font-family: inherit; color: #4a3749;
+  }
+  .add-row input[type="text"]:focus {
+    border-color: #EB9FAA;
+    box-shadow: 0 0 0 3px rgba(235,159,170,0.15);
+  }
+  .add-row input[type="text"]::placeholder { color: #c0a8b0; }
+  .add-row .btn-add {
+    padding: 8px 18px; background: #EB9FAA; color: white;
+    border: none; border-radius: 20px; font-size: 13px;
+    font-weight: 600; cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap; font-family: inherit;
+  }
+  .add-row .btn-add:hover { background: #e08898; }
+  .add-row .btn-add:active { transform: scale(0.96); }
+
+  .extra-row { display: none; gap: 8px; align-items: center; flex-shrink: 0; }
+  .extra-row.open { display: flex; }
+  .extra-row select, .extra-row input[type="date"] {
+    padding: 5px 10px; border: 1.5px solid rgba(192,206,228,0.6);
+    border-radius: 14px; font-size: 12px; outline: none;
+    background: rgba(255,255,255,0.65);
+    font-family: inherit; color: #4a3749; cursor: pointer;
+  }
+  .extra-row select:focus, .extra-row input[type="date"]:focus { border-color: #EB9FAA; }
+
+  .btn-more {
+    padding: 5px 12px; border: 1.5px dashed rgba(192,206,228,0.7);
+    background: transparent; border-radius: 14px; font-size: 12px;
+    cursor: pointer; color: #8a6e7e; font-family: inherit;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .btn-more:hover { border-color: #EB9FAA; color: #b85060; }
+
+  .search-wrap { position: relative; flex-shrink: 0; }
+  .search-wrap input {
+    width: 100%; padding: 7px 12px 7px 32px;
+    border: 1.5px solid rgba(192,206,228,0.5);
+    border-radius: 16px; font-size: 12px; outline: none;
+    background: rgba(255,255,255,0.55);
+    font-family: inherit; color: #4a3749;
+    transition: border 0.2s, box-shadow 0.2s;
+  }
+  .search-wrap input:focus {
+    border-color: #EB9FAA;
+    box-shadow: 0 0 0 3px rgba(235,159,170,0.12);
+  }
+  .search-wrap .search-icon {
+    position: absolute; left: 11px; top: 50%;
+    transform: translateY(-50%); font-size: 13px;
+    color: #c0a8b0; pointer-events: none;
+  }
+
+  .stats-bar { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .stats-bar .filter-btn {
+    padding: 5px 12px; border: 1.5px solid rgba(235,159,170,0.4);
+    border-radius: 16px; font-size: 12px; font-weight: 500;
+    cursor: pointer; background: rgba(255,255,255,0.5);
+    color: #8a6e7e; transition: all 0.2s; font-family: inherit;
+  }
+  .stats-bar .filter-btn:hover {
+    border-color: #EB9FAA; background: rgba(235,159,170,0.15); color: #b85060;
+  }
+  .stats-bar .filter-btn.active { background: #EB9FAA; color: white; border-color: #EB9FAA; }
+  .stats-bar .spacer { flex: 1; }
+  .stats-bar .count-label { font-size: 12px; color: #8a6e7e; font-weight: 500; }
+  .stats-bar .pin-btn {
+    padding: 5px 12px; border: 1.5px solid rgba(192,206,228,0.5);
+    background: rgba(255,255,255,0.5); border-radius: 16px;
+    font-size: 12px; cursor: pointer; color: #8a6e7e;
+    font-family: inherit; transition: all 0.2s; white-space: nowrap;
+  }
+  .stats-bar .pin-btn:hover { border-color: #EB9FAA; }
+  .stats-bar .pin-btn.pinned { background: #EB9FAA; color: white; border-color: #EB9FAA; }
+  .stats-bar .clear-done {
+    padding: 5px 12px; border: none; background: transparent;
+    color: #c77a88; font-size: 12px; font-weight: 500;
+    cursor: pointer; border-radius: 16px; transition: background 0.2s;
+    font-family: inherit; display: none;
+  }
+  .stats-bar .clear-done:hover { background: rgba(235,159,170,0.2); }
+
+  .todo-list {
+    flex: 1; display: flex; flex-direction: column; gap: 6px;
+    overflow-y: auto; overflow-x: hidden; min-height: 50px; padding-right: 4px;
+  }
+  .todo-list.is-empty::after {
+    content: '✨ 暂无待办事项';
+    display: flex; align-items: center; justify-content: center;
+    height: 90px; color: #c0a8b0; font-size: 13px; font-weight: 500;
+  }
+
+  .todo-list::-webkit-scrollbar { width: 4px; }
+  .todo-list::-webkit-scrollbar-track { background: transparent; }
+  .todo-list::-webkit-scrollbar-thumb { background: rgba(192,206,228,0.5); border-radius: 4px; }
+
+  .todo-item {
+    background: rgba(255,255,255,0.6); border-radius: 12px;
+    padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+    transition: all 0.2s; border: 1px solid rgba(255,255,255,0.5);
+    animation: slideIn 0.25s ease-out; flex-shrink: 0;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .todo-item:hover {
+    background: rgba(255,255,255,0.85);
+    box-shadow: 0 2px 12px rgba(180,130,150,0.15);
+  }
+  .todo-item.done { opacity: 0.5; }
+  .todo-item.done .item-title { text-decoration: line-through; color: #8a6e7e; }
+  .todo-item.dragging { opacity: 0.4; transform: scale(0.97); }
+  .todo-item.drag-over { border-top: 3px solid #EB9FAA; }
+
+  .check-circle {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid rgba(192,206,228,0.8); flex-shrink: 0;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.5);
+  }
+  .check-circle:hover { border-color: #EB9FAA; }
+  .check-circle.checked { background: #9dbf9d; border-color: #9dbf9d; }
+  .check-circle.checked::after { content: '✓'; color: white; font-size: 12px; font-weight: 700; }
+
+  .item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .item-title { font-size: 13px; font-weight: 500; word-break: break-word; color: #4a3749; }
+  .item-meta { display: flex; gap: 6px; align-items: center; font-size: 11px; }
+
+  .tag-priority { padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; }
+  .pri-high   { background: rgba(235,159,170,0.3); color: #a04050; }
+  .pri-medium { background: rgba(247,210,213,0.5); color: #8a5a5a; }
+  .pri-low    { background: rgba(192,206,228,0.4); color: #5a6a8a; }
+
+  .due-label { display: flex; align-items: center; gap: 2px; color: #8a6e7e; }
+  .due-label.overdue { color: #d4607a; font-weight: 600; }
+  .due-label.today   { color: #c08040; font-weight: 600; }
+
+  .item-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity 0.2s; }
+  .todo-item:hover .item-actions { opacity: 1; }
+  .item-actions button {
+    width: 26px; height: 26px; border: none; background: transparent;
+    border-radius: 8px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    color: #9a7a8a; transition: all 0.15s;
+  }
+  .item-actions button:hover { background: rgba(235,159,170,0.2); }
+  .item-actions button.del-btn:hover { background: rgba(220,100,120,0.2); color: #c05060; }
+
+  .todo-item.editing { flex-wrap: wrap; background: rgba(255,255,255,0.85); }
+  .todo-item.editing .item-body { width: 100%; }
+  .todo-item.editing .edit-title {
+    width: 100%; padding: 5px 8px; border: 1.5px solid #EB9FAA;
+    border-radius: 8px; font-size: 12px; outline: none;
+    font-family: inherit; background: rgba(255,255,255,0.8);
+  }
+  .todo-item.editing .edit-meta {
+    display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap;
+  }
+  .todo-item.editing .edit-meta select,
+  .todo-item.editing .edit-meta input[type="date"] {
+    padding: 4px 8px; border: 1.5px solid rgba(192,206,228,0.6);
+    border-radius: 10px; font-size: 11px; font-family: inherit;
+  }
+  .todo-item.editing .edit-meta button {
+    padding: 4px 10px; border-radius: 10px; border: none;
+    font-size: 11px; font-weight: 500; cursor: pointer; font-family: inherit;
+  }
+  .edit-save { background: #EB9FAA; color: white; }
+  .edit-save:hover { background: #e08898; }
+  .edit-cancel { background: rgba(192,206,228,0.4); color: #8a6e7e; }
+  .edit-cancel:hover { background: rgba(192,206,228,0.7); }
+
+  .hint { font-size: 10px; color: #c0a8b0; text-align: center; flex-shrink: 0; }
+</style>
+
+<script language="VBScript">
+  Dim pinTimer
+
+  Sub StartPin()
+    pinTimer = window.setInterval("KeepOnTop()", 2000)
+  End Sub
+
+  Sub StopPin()
+    window.clearInterval(pinTimer)
+    window.dialogTop = False
+  End Sub
+
+  Sub KeepOnTop()
+    On Error Resume Next
+    window.dialogTop = True
+  End Sub
+</script>
+
+</head>
+<body>
+
+<div class="widget">
+
+  <div class="add-row">
+    <input type="text" id="todoInput" placeholder="输入新的待办事项…" maxlength="200" autofocus>
+    <button class="btn-add" id="addBtn">添加</button>
+  </div>
+
+  <div class="extra-row" id="extraRow">
+    <input type="date" id="dueDateInput">
+    <select id="priorityInput">
+      <option value="low">低优先级</option>
+      <option value="medium" selected>中优先级</option>
+      <option value="high">高优先级</option>
+    </select>
+    <span style="flex:1;"></span>
+    <button class="btn-more" id="btnLess">收起 ▲</button>
+  </div>
+  <button class="btn-more" id="btnMore">更多选项 ▼</button>
+
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="搜索待办事项…">
+  </div>
+
+  <div class="stats-bar">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="active">未完成</button>
+    <button class="filter-btn" data-filter="completed">已完成</button>
+    <span class="spacer"></span>
+    <span class="count-label" id="countLabel"></span>
+    <button class="pin-btn" id="pinBtn">📌 置顶</button>
+    <button class="clear-done" id="clearDone">清除已完成</button>
+  </div>
+
+  <div class="todo-list is-empty" id="todoList"></div>
+  <div class="hint">拖拽排序 · 点击 ✎ 编辑 · 窗口可自由缩放</div>
+
+</div>
+
+<script>
+// Palette: #EB9FAA #F7D2D5 #FCEFF0 #C0CEE4
+
+// ── IE11 polyfills ──────────────────────────────────────────
+if (!Element.prototype.closest) {
+  Element.prototype.closest = function(selector) {
+    var el = this;
+    while (el) {
+      if (el.msMatchesSelector ? el.msMatchesSelector(selector) : el.matches(selector)) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+}
+
+(function() {
+  'use strict';
+
+  var STORE_KEY = 'dtw_todos_v3';
+  var FILTER_ALL       = 'all';
+  var FILTER_ACTIVE    = 'active';
+  var FILTER_COMPLETED = 'completed';
+  var PRI_HIGH   = 'high';
+  var PRI_MEDIUM = 'medium';
+  var PRI_LOW    = 'low';
+  var PRI_LABEL = {};
+  PRI_LABEL[PRI_HIGH]   = '高';
+  PRI_LABEL[PRI_MEDIUM] = '中';
+  PRI_LABEL[PRI_LOW]    = '低';
+
+  var todos     = [];
+  var filter    = FILTER_ALL;
+  var searchQ   = '';
+  var pinned    = false;
+  var editingId = null;
+  var searchTimer = null;
+
+  var todoInput   = document.getElementById('todoInput');
+  var dueDateIn   = document.getElementById('dueDateInput');
+  var priorityIn  = document.getElementById('priorityInput');
+  var addBtn      = document.getElementById('addBtn');
+  var extraRow    = document.getElementById('extraRow');
+  var btnMore     = document.getElementById('btnMore');
+  var btnLess     = document.getElementById('btnLess');
+  var todoList    = document.getElementById('todoList');
+  var countLabel  = document.getElementById('countLabel');
+  var clearDone   = document.getElementById('clearDone');
+  var searchInput = document.getElementById('searchInput');
+  var pinBtn      = document.getElementById('pinBtn');
+  var filterBtns  = document.querySelectorAll('.filter-btn');
+
+  function loadTodos() {
+    try { todos = JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch(e) { todos = []; }
+  }
+  function saveTodos() {
+    localStorage.setItem(STORE_KEY, JSON.stringify(todos));
+  }
+
+  function setPinned(on) {
+    pinned = on;
+    if (on) {
+      pinBtn.classList.add('pinned');
+      pinBtn.innerHTML = '📌 已置顶';
+      try { StartPin(); } catch(e) {}
+    } else {
+      pinBtn.classList.remove('pinned');
+      pinBtn.innerHTML = '📌 置顶';
+      try { StopPin(); } catch(e) {}
+    }
+  }
+
+  pinBtn.addEventListener('click', function() { setPinned(!pinned); });
+
+  btnMore.addEventListener('click', function() {
+    extraRow.classList.add('open');
+    btnMore.style.display = 'none';
+  });
+  btnLess.addEventListener('click', function() {
+    extraRow.classList.remove('open');
+    btnMore.style.display = '';
+  });
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function dueInfo(dateStr, todayMs) {
+    if (!dateStr) return null;
+    var d = new Date(dateStr + 'T00:00:00');
+    var diff = d.getTime() - todayMs;
+    var dd = Math.round(diff / 86400000);
+    var label;
+    if (dd === 0)  label = '今天';
+    else if (dd === 1)  label = '明天';
+    else if (dd === -1) label = '昨天';
+    else label = (d.getMonth()+1) + '月' + d.getDate() + '日';
+    var cls = (dd < 0) ? 'overdue' : (dd === 0 ? 'today' : '');
+    return { label:label, cls:cls };
+  }
+
+  function filtered() {
+    var list = todos.slice();
+    if (filter === FILTER_ACTIVE)    list = list.filter(function(t){ return !t.completed; });
+    if (filter === FILTER_COMPLETED) list = list.filter(function(t){ return t.completed; });
+    if (searchQ) {
+      var q = searchQ.toLowerCase();
+      list = list.filter(function(t){ return t.title.toLowerCase().indexOf(q) !== -1; });
+    }
+    return list;
+  }
+
+  function render() {
+    var list = filtered();
+    var activeN = 0, doneN = 0;
+    for (var i = 0; i < todos.length; i++) {
+      if (todos[i].completed) doneN++; else activeN++;
+    }
+
+    countLabel.textContent = activeN + ' 项待完成';
+    if (doneN > 0) { clearDone.style.display = ''; }
+    else           { clearDone.style.display = 'none'; }
+
+    if (list.length === 0) { todoList.classList.add('is-empty'); }
+    else                   { todoList.classList.remove('is-empty'); }
+
+    var todayMs = (new Date()).setHours(0,0,0,0);
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      html += (t.id === editingId) ? renderEdit(t) : renderItem(t, todayMs);
+    }
+    todoList.innerHTML = html;
+  }
+
+  function renderItem(t, todayMs) {
+    var di = dueInfo(t.dueDate, todayMs);
+    return (
+      '<div class="todo-item' + (t.completed ? ' done' : '') + '" data-id="' + t.id + '" draggable="true">' +
+        '<div class="check-circle' + (t.completed ? ' checked' : '') + '"></div>' +
+        '<div class="item-body">' +
+          '<span class="item-title">' + esc(t.title) + '</span>' +
+          '<div class="item-meta">' +
+            '<span class="tag-priority pri-' + t.priority + '">' + PRI_LABEL[t.priority] + '</span>' +
+            (di ? '<span class="due-label ' + di.cls + '">📅 ' + di.label + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="item-actions">' +
+          '<button title="编辑">✎</button>' +
+          '<button class="del-btn" title="删除">✕</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderEdit(t) {
+    var dueVal = t.dueDate || '';
+    return (
+      '<div class="todo-item editing" data-id="' + t.id + '">' +
+        '<div class="item-body">' +
+          '<input class="edit-title" value="' + esc(t.title) + '" data-field="title">' +
+          '<div class="edit-meta">' +
+            '<select data-field="priority">' +
+              '<option value="' + PRI_HIGH   + '"' + (t.priority===PRI_HIGH  ?' selected':'') + '>高优先级</option>' +
+              '<option value="' + PRI_MEDIUM + '"' + (t.priority===PRI_MEDIUM?' selected':'') + '>中优先级</option>' +
+              '<option value="' + PRI_LOW    + '"' + (t.priority===PRI_LOW   ?' selected':'') + '>低优先级</option>' +
+            '</select>' +
+            '<input type="date" value="' + dueVal + '" data-field="dueDate">' +
+            '<span style="flex:1;"></span>' +
+            '<button class="edit-save">保存</button>' +
+            '<button class="edit-cancel">取消</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function find(id) {
+    for (var i = 0; i < todos.length; i++) { if (todos[i].id === id) return todos[i]; }
+    return null;
+  }
+
+  function addTodo() {
+    var title = todoInput.value.trim();
+    if (!title) return;
+    todos.unshift({
+      id: uid(), title: title, completed: false,
+      priority: priorityIn.value,
+      dueDate: dueDateIn.value || null
+    });
+    todoInput.value = '';
+    dueDateIn.value = '';
+    priorityIn.value = PRI_MEDIUM;
+    saveTodos(); render();
+    todoInput.focus();
+  }
+
+  function toggleItem(id) {
+    var t = find(id); if (t) { t.completed = !t.completed; saveTodos(); render(); }
+  }
+  function deleteItem(id) {
+    todos = todos.filter(function(t){ return t.id !== id; });
+    if (editingId === id) editingId = null;
+    saveTodos(); render();
+  }
+
+  function clearDragOvers() {
+    var overs = todoList.querySelectorAll('.drag-over');
+    for (var i = 0; i < overs.length; i++) overs[i].classList.remove('drag-over');
+  }
+
+  todoList.addEventListener('click', function(e) {
+    var item = e.target.closest('.todo-item');
+    if (!item) return;
+    var id = item.getAttribute('data-id');
+
+    if (e.target.classList.contains('check-circle')) { toggleItem(id); return; }
+
+    if (e.target.closest('.item-actions button:not(.del-btn)')) {
+      editingId = id; render(); focusEdit(id); return;
+    }
+
+    if (e.target.closest('.del-btn')) { deleteItem(id); return; }
+
+    if (e.target.classList.contains('edit-save')) {
+      var t = find(id);
+      if (t) {
+        var titleIn = item.querySelector('[data-field="title"]');
+        var priIn   = item.querySelector('[data-field="priority"]');
+        var dateIn  = item.querySelector('[data-field="dueDate"]');
+        if (titleIn && titleIn.value.trim()) {
+          t.title    = titleIn.value.trim();
+          t.priority = priIn.value;
+          t.dueDate  = dateIn.value || null;
+          editingId  = null;
+          saveTodos(); render();
+        }
+      }
+      return;
+    }
+
+    if (e.target.classList.contains('edit-cancel')) { editingId = null; render(); return; }
+  });
+
+  function focusEdit(id) {
+    setTimeout(function() {
+      var inp = document.querySelector('[data-id="' + id + '"] .edit-title');
+      if (inp) { inp.focus(); inp.select(); }
+    }, 30);
+  }
+
+  todoList.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.classList.contains('edit-title')) {
+      e.target.closest('.todo-item').querySelector('.edit-save').click();
+    }
+    if (e.key === 'Escape' && e.target.classList.contains('edit-title')) {
+      editingId = null; render();
+    }
+  });
+
+  var dragItem = null;
+  todoList.addEventListener('dragstart', function(e) {
+    dragItem = e.target.closest('.todo-item');
+    if (!dragItem || dragItem.classList.contains('editing')) { e.preventDefault(); return; }
+    dragItem.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  todoList.addEventListener('dragend', function() {
+    if (dragItem) dragItem.classList.remove('dragging');
+    clearDragOvers();
+    dragItem = null;
+  });
+  todoList.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    var tgt = e.target.closest('.todo-item');
+    if (!tgt || tgt === dragItem || tgt.classList.contains('editing')) return;
+    e.dataTransfer.dropEffect = 'move';
+    clearDragOvers();
+    tgt.classList.add('drag-over');
+  });
+  todoList.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var tgt = e.target.closest('.todo-item');
+    if (!tgt || tgt === dragItem || tgt.classList.contains('editing')) return;
+    var sid = dragItem.getAttribute('data-id');
+    var tid = tgt.getAttribute('data-id');
+    var si = -1, ti = -1;
+    for (var i = 0; i < todos.length; i++) {
+      if (todos[i].id === sid) si = i;
+      if (todos[i].id === tid) ti = i;
+    }
+    if (si !== -1 && ti !== -1) {
+      var moved = todos.splice(si, 1)[0];
+      todos.splice(ti, 0, moved);
+      saveTodos(); render();
+    }
+  });
+
+  addBtn.addEventListener('click', addTodo);
+  todoInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addTodo();
+  });
+
+  searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function() {
+      searchQ = searchInput.value.trim();
+      render();
+    }, 180);
+  });
+
+  for (var i = 0; i < filterBtns.length; i++) {
+    filterBtns[i].addEventListener('click', function() {
+      for (var j = 0; j < filterBtns.length; j++) filterBtns[j].classList.remove('active');
+      this.classList.add('active');
+      filter = this.getAttribute('data-filter');
+      render();
+    });
+  }
+
+  clearDone.addEventListener('click', function() {
+    todos = todos.filter(function(t){ return !t.completed; });
+    saveTodos(); render();
+  });
+
+  loadTodos();
+  render();
+  todoInput.focus();
+})();
+</script>
+
+</body>
+</html>
